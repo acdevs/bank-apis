@@ -11,8 +11,9 @@ type Storage interface {
 	CreateAccount(*Account) error
 	GetAccounts() ([]*Account, error)
 	GetAccountByID(string) (*Account, error)
-	UpdateAccount(*Account) error
 	DeleteAccount(string) error
+	UpdateAccountBalance(string, int64) error
+	TransferAccount(int64, int64, int64) error
 }
 
 
@@ -86,14 +87,28 @@ func (s *PostgresStorage) GetAccountByID(id string) (*Account, error) {
 }
 
 
-func (s *PostgresStorage) UpdateAccount(account *Account) error {
-	// _, err := s.db.Exec()
-	return nil
-}
-
-
 func (s *PostgresStorage) DeleteAccount(id string) error {
 	query := "DELETE FROM accounts WHERE id = $1"
 	_, err := s.db.Exec(query, id)
+	return err
+}
+
+
+func (s *PostgresStorage) UpdateAccountBalance(id string, balance int64) error {
+	query := `UPDATE accounts SET balance = balance + $1 WHERE id = $2`
+	_, err := s.db.Exec(query, balance, id)
+	return err
+}
+
+
+func (s *PostgresStorage) TransferAccount(fromNumber, toNumber, amount int64) error {
+	query := `UPDATE accounts SET balance = balance - $1 WHERE number = $2`
+	_, err := s.db.Exec(query, amount, fromNumber)
+	if err != nil {
+		return err
+	}
+
+	query = `UPDATE accounts SET balance = balance + $1 WHERE number = $2`
+	_, err = s.db.Exec(query, amount, toNumber)
 	return err
 }

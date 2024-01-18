@@ -101,8 +101,9 @@ func (server *APIServer) Run(){
 	router.HandleFunc("/api/login", server.handleLogin).Methods("POST")
 	router.HandleFunc("/api/accounts", server.handleAccount).Methods("GET", "POST", "PUT")
 	router.HandleFunc("/api/accounts/{id}", WithJWTAuth(server.handleGetAccountByID, server.Store)).Methods("GET")
-	router.HandleFunc("/api/accounts/{id}", server.handleDeleteAccount).Methods("DELETE")
-	router.HandleFunc("/api/accounts/transfer", server.handleTransferAccount).Methods("POST")
+	router.HandleFunc("/api/accounts/{id}", WithJWTAuth(server.handleDeleteAccount, server.Store)).Methods("DELETE")
+	router.HandleFunc("/api/accounts/{id}/balance", WithJWTAuth(server.handleUpdateAccountBalance , server.Store)).Methods("PATCH")
+	router.HandleFunc("/api/accounts/{id}/transfer", WithJWTAuth(server.handleTransferAccount, server.Store)).Methods("POST")
 	
 	log.Println("Listening on", server.ListenAddress)
 	http.ListenAndServe(server.ListenAddress, router)
@@ -110,15 +111,10 @@ func (server *APIServer) Run(){
 
 
 func (server *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		server.handleGetAccounts(w, r)
+	if r.Method != "POST" {
+		return
 	}
-	if r.Method == "POST" {
-		server.handleCreateAccount(w, r)
-	}
-	if r.Method == "PUT" {
-		server.handleTransferAccount(w, r)
-	}
+	server.handleCreateAccount(w, r)
 }
 
 
@@ -219,15 +215,57 @@ func (server *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Requ
 }
 
 
-func (server *APIServer) handleTransferAccount(w http.ResponseWriter, r *http.Request) {
-	TransferAccountReq := new(TransferAccountRequest)
+func (server *APIServer) handleUpdateAccountBalance(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	req := new(UpdateAccountBalanceRequest)
 
-	if err := json.NewDecoder(r.Body).Decode(TransferAccountReq); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		log.Println("Error decoding request body", err)
 		Error := &Error{Message: "Invalid request body"}
 		WriteJSON(w, http.StatusBadRequest, Error)
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, TransferAccountReq)
+	err := server.Store.UpdateAccountBalance(id, req.Amount)
+	if err != nil {
+		log.Println("Error updating account balance", err)
+		Error := &Error{Message: "Error updating account balance"}
+		WriteJSON(w, http.StatusInternalServerError, Error)
+		return
+	}
+
+	resp := &Response{Message: "Account Balance Update Successful"}
+	WriteJSON(w, http.StatusOK, resp)
+}
+
+
+func (server *APIServer) handleTransferAccount(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	req := new(TransferAccountRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		log.Println("Error decoding request body", err)
+		Error := &Error{Message: "Invalid request body"}
+		WriteJSON(w, http.StatusBadRequest, Error)
+		return
+	}
+
+	acc, err := server.Store.GetAccountByID(id)
+	if err != nil {
+		log.Println("Account Transfer Failed", err)
+		Error := &Error{Message: "Account Transfer Failed"}
+		WriteJSON(w, http.StatusInternalServerError, Error)
+		return
+	}
+
+	err = server.Store.TransferAccount(acc.Number, req.ToAccount, req.Amount)
+	if err != nil {
+		log.Println("Account Transfer Failed", err)
+		Error := &Error{Message: "Account Transfer Failed"}
+		WriteJSON(w, http.StatusInternalServerError, Error)
+		return
+	}
+
+	resp := &Response{Message: "Account Transfer Successful"}
+	WriteJSON(w, http.StatusOK, resp)
 }

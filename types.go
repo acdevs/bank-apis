@@ -14,7 +14,7 @@ type Account struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Password  string `json:"password"`
-	Balance   int    `json:"balance"`
+	Balance   int64    `json:"balance"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -41,10 +41,17 @@ type DeleteAccountResponse struct {
 	ID string `json:"id"`
 }
 
+type UpdateAccountBalanceRequest struct {
+	Amount int64 `json:"amount"`
+}
+
 type TransferAccountRequest struct {
-	FromAccount string `json:"from_account_number"`
-	ToAccount   string `json:"to_account_number"`
-	Amount        int    `json:"amount"`
+	ToAccount   int64 `json:"to_account_number"`
+	Amount      int64    `json:"amount"`
+}
+
+type Response struct {
+	Message string `json:"message"`
 }
 
 type Error struct {
